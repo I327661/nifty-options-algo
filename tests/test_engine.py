@@ -60,3 +60,18 @@ def test_sl_trigger_from_tick_places_sell():
     ex.place_order.assert_called_once()
     sell_signal = ex.place_order.call_args[0][0]
     assert sell_signal.action == "SELL"
+
+
+def test_square_off_uses_last_candle_close_not_zero():
+    """square_off_intraday must use last-known candle close, not position.current_price=0.0."""
+    engine, ex, pm = _engine(None)
+    from src.models import Position
+    pos = Position("p1", "sys", "NSE:NIFTY2410312150CE", "CE", 21500,
+                   date(2024, 10, 31), 100.0, 1, 70.0, 160.0,
+                   datetime(2024, 10, 28, 9, 20), "intraday")  # current_price defaults to 0.0
+    pm.get_intraday_positions.return_value = [pos]
+    # feed one candle so engine records last known close
+    engine.on_candle(_candle())  # candle.close = 21530.0
+    engine.square_off_intraday()
+    sell_signal = ex.place_order.call_args[0][0]
+    assert sell_signal.market_price == 21530.0

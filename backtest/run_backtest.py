@@ -4,8 +4,9 @@ import sys
 from datetime import date, timedelta
 
 from src.config import AppConfig
+from src.data.historical import HistoricalDataManager
 from src.data.symbol_resolver import SymbolResolver
-from src.data.historical import HistoricalDataFetcher
+from src.models import Candle
 from src.strategies.directional import DirectionalStrategy
 from src.strategies.scalping import ScalpingStrategy
 from src.strategies.systematic import SystematicStrategy
@@ -27,48 +28,68 @@ def _parse_args():
     return p.parse_args()
 
 
-def _build_strategies(cfg, symbol_resolver):
-    strategies = []
-    directional = DirectionalStrategy("directional", symbol_resolver=symbol_resolver)
-    scalping = ScalpingStrategy("scalping", symbol_resolver=symbol_resolver)
-    systematic = SystematicStrategy("systematic", cfg.strategies.get("systematic", {
+def _build_strategies(cfg, symbol_resolver, strategy_filter: str = "all"):
+    directional_params = {"ema_fast": 9, "ema_slow": 21, "rsi_period": 14, "trade_type": "intraday"}
+    scalping_params = {"trade_type": "intraday"}
+    systematic_params = {
         "entry_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
         "entry_time": "09:25",
         "option_type": "CE",
         "trade_type": "intraday",
-        "sl_pct": 0.30,
-        "target_pct": 0.60,
-    }), symbol_resolver=symbol_resolver)
-    return [directional, scalping, systematic]
+        "sl_pct": cfg.risk.default_sl_pct,
+        "target_pct": cfg.risk.default_target_pct,
+    }
+    all_strategies = {
+        "directional": DirectionalStrategy("directional", directional_params, symbol_resolver=symbol_resolver),
+        "scalping": ScalpingStrategy("scalping", scalping_params, symbol_resolver=symbol_resolver),
+        "systematic": SystematicStrategy("systematic", systematic_params, symbol_resolver=symbol_resolver),
+    }
+    if strategy_filter == "all":
+        return list(all_strategies.values())
+    return [all_strategies[strategy_filter]]
 
 
 def main():
     args = _parse_args()
     cfg = AppConfig()
+    cfg.risk.account_capital = args.capital
     from_date = date.fromisoformat(args.from_date)
     to_date = date.fromisoformat(args.to_date)
 
-    symbol_resolver = SymbolResolver()
-    fetcher = HistoricalDataFetcher(cfg)
+    # Pass None as fyers_client — backtest replays from cache, no live API needed
+    symbol_resolver = SymbolResolver(fyers_client=None)
+    fetcher = HistoricalDataManager(fyers_client=None)
     trade_log = TradeLog(args.db, lot_size=cfg.risk.lot_size)
     portfolio = PortfolioManager(trade_log, lot_size=cfg.risk.lot_size)
     executor = BacktestExecutor(
         brokerage_per_order=cfg.risk.brokerage_per_order,
         lot_size=cfg.risk.lot_size,
     )
-    strategy_manager = StrategyManager(_build_strategies(cfg, symbol_resolver))
+    strategy_manager = StrategyManager(_build_strategies(cfg, symbol_resolver, args.strategy))
     risk_manager = RiskManager(cfg)
-
-    # Override account capital from CLI arg
-    cfg.risk.__dict__["account_capital"] = args.capital
-
     engine = Engine(strategy_manager, risk_manager, executor, portfolio, cfg)
 
     current = from_date
     while current <= to_date:
         try:
-            candles = fetcher.fetch("NSE:NIFTY50-INDEX", "5", current, current)
-            for candle in candles:
+            df = fetcher.get_ohlcv("NSE:NIFTY50-INDEX", current, current, "5")
+            if df.empty:
+                current += timedelta(days=1)
+                continue
+            df_reset = df.reset_index()
+            ts_col = "timestamp" if "timestamp" in df_reset.columns else df_reset.columns[0]
+            for row in df_reset.itertuples(index=False):
+                ts = getattr(row, ts_col)
+                candle = Candle(
+                    symbol="NSE:NIFTY50-INDEX",
+                    timestamp=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+                    open=float(row.open),
+                    high=float(row.high),
+                    low=float(row.low),
+                    close=float(row.close),
+                    volume=int(row.volume),
+                    timeframe="5m",
+                )
                 engine.on_candle(candle)
             engine.square_off_intraday()
             summary = trade_log.get_daily_summary(current)

@@ -12,8 +12,10 @@ class Engine:
         self._executor = executor
         self._portfolio = portfolio_manager
         self._config = config
+        self._last_candle_close: float = 0.0
 
     def on_candle(self, candle: Candle) -> None:
+        self._last_candle_close = candle.close
         self._strategies.on_candle(candle)
         for signal in self._strategies.collect_signals():
             self._process_signal(signal, candle.close)
@@ -40,6 +42,7 @@ class Engine:
 
     def square_off_intraday(self) -> None:
         for position in self._portfolio.get_intraday_positions():
+            price = self._last_candle_close if self._last_candle_close > 0 else position.current_price
             sell_signal = Signal(
                 strategy=position.strategy,
                 action="SELL",
@@ -52,10 +55,10 @@ class Engine:
                 target_price=position.target_price,
                 timestamp=datetime.now(),
                 trade_type=position.trade_type,
-                market_price=position.current_price,
+                market_price=price,
             )
             self._executor.place_order(sell_signal)
-            self._portfolio.close_position(position.position_id, position.current_price, "square_off")
+            self._portfolio.close_position(position.position_id, price, "square_off")
 
     def _process_signal(self, signal: Signal, market_price: float) -> None:
         approved, reason = self._risk.evaluate(

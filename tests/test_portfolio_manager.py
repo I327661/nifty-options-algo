@@ -44,3 +44,12 @@ def test_get_intraday_positions_filters(tmp_path):
     pm.open_position(_pos("p1", trade_type="intraday"))
     pm.open_position(_pos("p2", trade_type="positional"))
     assert len(pm.get_intraday_positions()) == 1
+
+
+def test_illiquid_premium_triggers_exit(tmp_path):
+    """Position with premium below illiquid threshold must be auto-closed."""
+    pm = PortfolioManager(TradeLog(str(tmp_path / "t.db")), illiquid_threshold=5.0)
+    pm.open_position(_pos(sl=2.0, target=200.0))  # SL and target far away
+    triggered = pm.update_prices("NSE:NIFTY2410312150CE", 4.0)  # below threshold
+    assert len(triggered) == 1
+    assert len(pm.get_open_positions()) == 0

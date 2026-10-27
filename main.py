@@ -23,17 +23,22 @@ def main():
 
     from fyers_apiv3 import fyersModel
     fyers_client = fyersModel.FyersModel(
-        client_id=cfg.broker.client_id,
+        client_id=cfg.broker.app_id,
         token=cfg.broker.access_token,
         log_path="",
     )
 
-    symbol_resolver = SymbolResolver()
+    symbol_resolver = SymbolResolver(fyers_client)
     trade_log = TradeLog("live_trades.db", lot_size=cfg.risk.lot_size)
     portfolio = PortfolioManager(trade_log, lot_size=cfg.risk.lot_size)
     executor = LiveExecutor(fyers_client, lot_size=cfg.risk.lot_size)
 
-    systematic_cfg = {
+    default_params = {
+        "ema_fast": 9, "ema_slow": 21, "rsi_period": 14,
+        "trade_type": "intraday",
+    }
+    scalping_params = {"trade_type": "intraday"}
+    systematic_params = {
         "entry_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
         "entry_time": "09:25",
         "option_type": "CE",
@@ -42,9 +47,9 @@ def main():
         "target_pct": cfg.risk.default_target_pct,
     }
     strategies = [
-        DirectionalStrategy("directional", symbol_resolver=symbol_resolver),
-        ScalpingStrategy("scalping", symbol_resolver=symbol_resolver),
-        SystematicStrategy("systematic", systematic_cfg, symbol_resolver=symbol_resolver),
+        DirectionalStrategy("directional", default_params, symbol_resolver=symbol_resolver),
+        ScalpingStrategy("scalping", scalping_params, symbol_resolver=symbol_resolver),
+        SystematicStrategy("systematic", systematic_params, symbol_resolver=symbol_resolver),
     ]
     strategy_manager = StrategyManager(strategies)
     risk_manager = RiskManager(cfg)

@@ -7,9 +7,10 @@ from src.portfolio.trade_log import TradeLog
 
 
 class PortfolioManager:
-    def __init__(self, trade_log: TradeLog, lot_size: int = 65):
+    def __init__(self, trade_log: TradeLog, lot_size: int = 65, illiquid_threshold: float = 0.0):
         self._trade_log = trade_log
         self._lot_size = lot_size
+        self._illiquid_threshold = illiquid_threshold
         self._open: dict[str, Position] = {}
         self._closed_today: list[tuple[Position, float]] = []
 
@@ -32,6 +33,8 @@ class PortfolioManager:
                 to_close.append((pid, current_price, "target"))
             elif current_price <= pos.sl_price:
                 to_close.append((pid, current_price, "SL"))
+            elif self._illiquid_threshold > 0 and current_price < self._illiquid_threshold:
+                to_close.append((pid, current_price, "illiquid"))
         for pid, price, reason in to_close:
             triggered.append(self._open[pid])
             self.close_position(pid, price, reason)
