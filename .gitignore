@@ -1,0 +1,13 @@
+config/.env
+data/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.superpowers/
+*.parquet
+trades.db

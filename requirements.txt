@@ -1,0 +1,14 @@
+fyers-apiv3
+pandas>=2.0
+numpy
+pandas-ta
+vectorbt
+APScheduler>=3.10
+pydantic-settings>=2.0
+pydantic>=2.0
+loguru
+pyarrow
+pytest
+pytest-mock
+python-dotenv
+PyYAML
