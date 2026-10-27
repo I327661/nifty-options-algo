@@ -13,6 +13,14 @@ class PortfolioManager:
         self._illiquid_threshold = illiquid_threshold
         self._open: dict[str, Position] = {}
         self._closed_today: list[tuple[Position, float]] = []
+        self._current_time: Optional[datetime] = None
+
+    def set_current_time(self, ts: datetime) -> None:
+        """Set the logical clock. Call with each candle timestamp for accurate backtest logging."""
+        self._current_time = ts
+
+    def _now(self) -> datetime:
+        return self._current_time if self._current_time is not None else datetime.now()
 
     def open_position(self, position: Position) -> None:
         self._open[position.position_id] = position
@@ -20,7 +28,11 @@ class PortfolioManager:
     def close_position(self, position_id: str, exit_price: float, exit_reason: str) -> None:
         position = self._open.pop(position_id)
         self._closed_today.append((position, exit_price))
-        self._trade_log.log_trade_closed(position, exit_price, exit_reason, datetime.now())
+        self._trade_log.log_trade_closed(position, exit_price, exit_reason, self._now())
+
+    def reset_daily(self) -> None:
+        """Call at the start of each new trading day to clear intraday P&L accumulator."""
+        self._closed_today = []
 
     def update_prices(self, symbol: str, current_price: float) -> list:
         triggered = []

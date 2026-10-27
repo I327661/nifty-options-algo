@@ -22,7 +22,7 @@ class SystematicStrategy(BaseStrategy):
             return
 
         try:
-            expiry = self.symbol_resolver.get_current_expiry()
+            expiry = self.symbol_resolver.get_current_expiry(as_of=candle.timestamp.date())
             symbol = self.symbol_resolver.get_atm_symbol(candle.close, option_type, expiry)
         except Exception:
             return
