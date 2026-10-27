@@ -1,7 +1,7 @@
 fyers-apiv3
 pandas>=2.0
 numpy
-pandas-ta
+ta-lib
 vectorbt
 APScheduler>=3.10
 pydantic-settings>=2.0
