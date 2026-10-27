@@ -18,7 +18,6 @@ from src.data.symbol_resolver import SymbolResolver
 from src.models import Candle
 from src.strategies.directional import DirectionalStrategy
 from src.strategies.scalping import ScalpingStrategy
-from src.strategies.systematic import SystematicStrategy
 from src.strategies.manager import StrategyManager
 from src.risk.manager import RiskManager
 from src.execution.backtest import BacktestExecutor
@@ -32,7 +31,7 @@ def _parse_args():
     p.add_argument("--days", type=int, default=30, help="Number of past days to test (max 60 for 5m data)")
     p.add_argument("--capital", type=float, default=100000.0, help="Starting capital in INR")
     p.add_argument("--strategy", default="all",
-                   choices=["all", "directional", "scalping", "systematic"])
+                   choices=["all", "directional", "scalping"])
     p.add_argument("--db", default="backtest_free.db", help="SQLite output path")
     return p.parse_args()
 
@@ -52,18 +51,9 @@ def _download_nifty_data(days: int):
 def _build_strategies(cfg, symbol_resolver, strategy_filter):
     directional_params = {"ema_fast": 9, "ema_slow": 21, "rsi_period": 14, "trade_type": "intraday"}
     scalping_params = {"trade_type": "intraday"}
-    systematic_params = {
-        "entry_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "entry_time": "09:25",
-        "option_type": "CE",
-        "trade_type": "intraday",
-        "sl_pct": cfg.risk.default_sl_pct,
-        "target_pct": cfg.risk.default_target_pct,
-    }
     all_strategies = {
         "directional": DirectionalStrategy("directional", directional_params, symbol_resolver=symbol_resolver),
         "scalping": ScalpingStrategy("scalping", scalping_params, symbol_resolver=symbol_resolver),
-        "systematic": SystematicStrategy("systematic", systematic_params, symbol_resolver=symbol_resolver),
     }
     if strategy_filter == "all":
         return list(all_strategies.values())

@@ -14,10 +14,20 @@ class DirectionalStrategy(BaseStrategy):
         self.symbol_resolver = symbol_resolver
         self._candles: list[Candle] = []
         self._pending_signal: Optional[Signal] = None
+        self._trades_today: int = 0
+        self._last_day = None
 
     def on_candle(self, candle: Candle) -> None:
         self._candles.append(candle)
         self._pending_signal = None
+
+        candle_day = candle.timestamp.date()
+        if self._last_day != candle_day:
+            self._trades_today = 0
+            self._last_day = candle_day
+
+        if self._trades_today >= 3:
+            return
 
         ema_fast = self.parameters.get("ema_fast", 9)
         ema_slow = self.parameters.get("ema_slow", 21)
@@ -76,6 +86,7 @@ class DirectionalStrategy(BaseStrategy):
             timestamp=candle.timestamp,
             trade_type=self.parameters.get("trade_type", "intraday"),
         )
+        self._trades_today += 1
 
     def generate_signal(self) -> Optional[Signal]:
         signal = self._pending_signal
@@ -85,3 +96,5 @@ class DirectionalStrategy(BaseStrategy):
     def reset(self) -> None:
         self._candles = []
         self._pending_signal = None
+        self._trades_today = 0
+        self._last_day = None

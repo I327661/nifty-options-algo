@@ -64,3 +64,49 @@ def test_bullish_crossover_generates_ce_signal():
     assert len(ce_signals) >= 1, "Expected at least one CE signal from bullish EMA crossover"
     assert ce_signals[0].action == "BUY"
 
+
+def test_max_3_entries_respected():
+    """Cap blocks signals even when crossover conditions are met."""
+    resolver = MagicMock()
+    resolver.get_current_expiry.return_value = date(2024, 1, 2)
+    resolver.get_atm_symbol.return_value = "NSE:NIFTY24010221500CE"
+    s = DirectionalStrategy("dir", {
+        "ema_fast": 9, "ema_slow": 21, "rsi_period": 14, "trade_type": "intraday"
+    }, symbol_resolver=resolver)
+
+    base_dt = datetime(2024, 1, 2, 9, 20)
+    # Pre-fill with declining candles so a crossover is possible
+    for price in [22000 - i * 60 for i in range(30)]:
+        s.on_candle(Candle("NSE:NIFTY50-INDEX", base_dt, price-5, price+5, price-15, price, 1000, "5m"))
+        s.generate_signal()
+
+    # Mark 3 trades already taken today
+    s._trades_today = 3
+    s._last_day = base_dt.date()
+
+    # Rising candles that would normally trigger a CE signal
+    signals = []
+    for price in [20260 + i * 200 for i in range(30)]:
+        s.on_candle(Candle("NSE:NIFTY50-INDEX", base_dt, price-5, price+5, price-10, price, 1000, "5m"))
+        sig = s.generate_signal()
+        if sig is not None:
+            signals.append(sig)
+
+    assert len(signals) == 0
+
+
+def test_daily_cap_resets_on_new_day():
+    s = _strategy()
+    s._trades_today = 3
+    s._last_day = datetime(2024, 1, 2).date()
+    # Feed a candle on the next day — counter must reset to 0
+    s.on_candle(_candle(21500.0, datetime(2024, 1, 3, 9, 20)))
+    assert s._trades_today == 0
+
+
+def test_reset_clears_trade_counter():
+    s = _strategy()
+    s._trades_today = 2
+    s.reset()
+    assert s._trades_today == 0
+

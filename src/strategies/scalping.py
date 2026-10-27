@@ -19,6 +19,7 @@ class ScalpingStrategy(BaseStrategy):
         self._cum_tp_vol: float = 0.0
         self._cum_vol: int = 0
         self._last_day = None
+        self._trades_today: int = 0
 
     def _is_in_active_window(self, ts: datetime) -> bool:
         t = ts.time()
@@ -35,6 +36,10 @@ class ScalpingStrategy(BaseStrategy):
             self._cum_vol = 0
             self._candles = []
             self._last_day = candle.timestamp.date()
+            self._trades_today = 0
+
+        if self._trades_today >= 3:
+            return
 
         self._candles.append(candle)
         typical_price = (candle.high + candle.low + candle.close) / 3
@@ -76,6 +81,7 @@ class ScalpingStrategy(BaseStrategy):
             timestamp=candle.timestamp,
             trade_type=self.parameters.get("trade_type", "intraday"),
         )
+        self._trades_today += 1
 
     def generate_signal(self) -> Optional[Signal]:
         signal = self._pending_signal
@@ -88,3 +94,4 @@ class ScalpingStrategy(BaseStrategy):
         self._cum_tp_vol = 0.0
         self._cum_vol = 0
         self._last_day = None
+        self._trades_today = 0

@@ -8,7 +8,6 @@ from src.data.symbol_resolver import SymbolResolver
 from src.data.live_feed import LiveFeed
 from src.strategies.directional import DirectionalStrategy
 from src.strategies.scalping import ScalpingStrategy
-from src.strategies.systematic import SystematicStrategy
 from src.strategies.manager import StrategyManager
 from src.risk.manager import RiskManager
 from src.execution.live import LiveExecutor
@@ -33,23 +32,14 @@ def main():
     portfolio = PortfolioManager(trade_log, lot_size=cfg.risk.lot_size)
     executor = LiveExecutor(fyers_client, lot_size=cfg.risk.lot_size)
 
-    default_params = {
+    directional_params = {
         "ema_fast": 9, "ema_slow": 21, "rsi_period": 14,
         "trade_type": "intraday",
     }
     scalping_params = {"trade_type": "intraday"}
-    systematic_params = {
-        "entry_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "entry_time": "09:25",
-        "option_type": "CE",
-        "trade_type": "intraday",
-        "sl_pct": cfg.risk.default_sl_pct,
-        "target_pct": cfg.risk.default_target_pct,
-    }
     strategies = [
-        DirectionalStrategy("directional", default_params, symbol_resolver=symbol_resolver),
+        DirectionalStrategy("directional", directional_params, symbol_resolver=symbol_resolver),
         ScalpingStrategy("scalping", scalping_params, symbol_resolver=symbol_resolver),
-        SystematicStrategy("systematic", systematic_params, symbol_resolver=symbol_resolver),
     ]
     strategy_manager = StrategyManager(strategies)
     risk_manager = RiskManager(cfg)
